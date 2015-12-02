@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -12,6 +13,9 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 
+import edu.gatech.gtisc.simplepermanalysis.SimplePermAnalysis;
+
+import edu.gatech.gtisc.simplepermanalysis.SimplePermAnalysis;
 import soot.Body;
 import soot.BodyTransformer;
 import soot.Local;
@@ -36,6 +40,10 @@ public class SysCallInstrumentation {
 	public static String apkPath = null;
 	public static String androidJarDirPath = null;
 	public static String outDir = null;	
+	// The system call APIs that is interesting to us.
+	public static Set<String> sysCalls = null;
+	// The classes that we want to instrument.
+	public static Set<String> extraClasses = null;
 
 	private static void buildOptions() {
 		options = new org.apache.commons.cli.Options();
@@ -83,6 +91,15 @@ public class SysCallInstrumentation {
 		
 		buildOptions();
 		parseOptions(args);
+		
+		/* Analyze permission of the added module.
+		 * 1. Analyze the permissions for the repackaged application.
+		 * 2. Get the added module. So we have permissions related to the added part. 
+		 */
+		// SimplePermAnalysis.main(args);
+		// SimplePermAnalysis.class2Permission
+		// SimplePermAnalysis.entryPointClasses
+		// Load the permissions from class relation graph.
 		
 		//prefer Android APK files// -src-prec apk
 		Options.v().set_src_prec(Options.src_prec_apk);
