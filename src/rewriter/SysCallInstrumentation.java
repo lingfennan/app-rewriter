@@ -189,7 +189,7 @@ public class SysCallInstrumentation {
 			"-d",
 			outDir + File.separator + apkName,
 			"-force-android-jar",
-			androidJarDirPath + "/android-21/android.jar"
+			androidJarDirPath + "/android-22/android.jar"
 		};        
 		
 		soot.Main.main(sootArgs);
