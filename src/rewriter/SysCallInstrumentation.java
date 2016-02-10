@@ -52,8 +52,8 @@ public class SysCallInstrumentation {
 	public static String outDir = null;	
 	// The system call APIs that is interesting to us.
 	public static PSCout psCout = null;
-	// The classes that we want to instrument.
-	public static List<JsonObject> instClasses = null;
+	// The methods that we want to instrument.
+	public static List<JsonObject> instMethods = null;
 	public static Set<String> addedClasses = null;
 
 	private static void buildOptions() {
@@ -88,8 +88,8 @@ public class SysCallInstrumentation {
 					androidJarDirPath = commandLine.getOptionValue("androidJarDir");
 				} else if (opt.equals("outDir")) {
 					outDir = commandLine.getOptionValue("outDir");
-				} else if (opt.equals("instClasses")) {
-					instClasses = SysCallUtil.readJsonFromFile(commandLine.getOptionValue("instClasses"));
+				} else if (opt.equals("instMethods")) {
+					instMethods = SysCallUtil.readJsonFromFile(commandLine.getOptionValue("instMethods"));
 				}
 			}
 		} catch (ParseException ex) {
@@ -105,7 +105,7 @@ public class SysCallInstrumentation {
 		buildOptions();
 		parseOptions(args);
 		addedClasses = new HashSet<String>();
-		for (JsonObject c : instClasses) {
+		for (JsonObject c : instMethods) {
 			if (c.keySet().size() > 1) {
 				break;
 			}
