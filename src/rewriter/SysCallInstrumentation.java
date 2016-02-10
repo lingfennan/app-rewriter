@@ -62,7 +62,7 @@ public class SysCallInstrumentation {
 		options.addOption("apk", true, "apk file");
 		options.addOption("androidJarDir", true, "android jars directory");
 		options.addOption("outDir", true, "out dir");
-		options.addOption("instClasses", true, "the classes to instrument");
+		options.addOption("instMethods", true, "the methods to instrument");
 	}
 	
 	private static void parseOptions(String[] args) {
