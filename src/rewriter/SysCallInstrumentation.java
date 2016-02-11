@@ -2,15 +2,10 @@ package rewriter;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-
-import javax.json.JsonObject;
-
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 // import org.apache.commons.cli.Option;
@@ -19,6 +14,7 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 
 import edu.gatech.gtisc.legoandroid.permission.PSCout;
+import edu.gatech.gtisc.simplepermanalysis.Androsim;
 import soot.Body;
 import soot.BodyTransformer;
 import soot.Local;
@@ -40,29 +36,33 @@ import soot.jimple.InvokeStmt;
 import soot.jimple.Jimple;
 import soot.jimple.NewExpr;
 import soot.jimple.SpecialInvokeExpr;
-import soot.jimple.Stmt;
 import soot.jimple.StringConstant;
 import soot.options.Options;
 
 
 public class SysCallInstrumentation {
 	public static org.apache.commons.cli.Options options = null;
-	public static String apkPath = null;
-	public static String androidJarDirPath = null;
-	public static String outDir = null;	
+	
+	private static String apkPath = null;
+	// The methods that we want to instrument.	
+	private static String androSimPath = null;
+	private static String diffMethodPath = null;
+	private static String androidJarDirPath = null;
+	private static String forceAndroidJarPath = null;	
+	private static String outDir = null;	
+	
 	// The system call APIs that is interesting to us.
-	public static PSCout psCout = null;
-	// The methods that we want to instrument.
-	public static List<JsonObject> instMethods = null;
-	public static Set<String> addedClasses = null;
+	private static PSCout psCout;
+	private static Androsim androsim;	
 
 	private static void buildOptions() {
 		options = new org.apache.commons.cli.Options();
 		
 		options.addOption("apk", true, "apk file");
+		options.addOption("androSimPath", true, "path to the androsim results");
+		options.addOption("diffMethodPath", true, "Path to the diff method results");		
 		options.addOption("androidJarDir", true, "android jars directory");
 		options.addOption("outDir", true, "out dir");
-		options.addOption("instMethods", true, "the methods to instrument");
 	}
 	
 	private static void parseOptions(String[] args) {
@@ -84,12 +84,15 @@ public class SysCallInstrumentation {
 				
 				if (opt.equals("apk")){
 					apkPath = commandLine.getOptionValue("apk");
+				} else if (opt.equals("androSimPath")) {
+					androSimPath = commandLine.getOptionValue("androSimPath");
+				} else if (opt.equals("diffMethodPath")) {
+					diffMethodPath = commandLine.getOptionValue("diffMethodPath");					
 				} else if (opt.equals("androidJarDir")) {
 					androidJarDirPath = commandLine.getOptionValue("androidJarDir");
+					forceAndroidJarPath = androidJarDirPath + "/android-22/android.jar";					
 				} else if (opt.equals("outDir")) {
 					outDir = commandLine.getOptionValue("outDir");
-				} else if (opt.equals("instMethods")) {
-					instMethods = SysCallUtil.readJsonFromFile(commandLine.getOptionValue("instMethods"));
 				}
 			}
 		} catch (ParseException ex) {
@@ -104,23 +107,15 @@ public class SysCallInstrumentation {
 		
 		buildOptions();
 		parseOptions(args);
-		addedClasses = new HashSet<String>();
-		for (JsonObject c : instMethods) {
-			if (c.keySet().size() > 1) {
-				break;
-			}
-			addedClasses.add(c.keySet().iterator().next());
-		}
 		
-		/* Analyze permission of the added module.
-		 * 1. Analyze the permissions for the repackaged application.
-		 * 2. Get the added module. So we have permissions related to the added part. 
-		 */
-		// Get the methods to permission mapping		
+		// initialize androsim
+		androsim = new Androsim(androSimPath, diffMethodPath);
+
 		// initialize PSCout
 		String dataDir = System.getProperty("user.dir") + File.separator + "data";
-		psCout = new PSCout(dataDir + File.separator + "jellybean_allmappings", dataDir + File.separator + "jellybean_intentpermissions");
-		
+		psCout = new PSCout(dataDir + File.separator + "jellybean_allmappings",
+				dataDir + File.separator + "jellybean_intentpermissions");
+
 		// prefer Android APK files// -src-prec apk
 		Options.v().set_src_prec(Options.src_prec_apk);
 		
@@ -145,8 +140,7 @@ public class SysCallInstrumentation {
 				final String currSig = currMethod.getSignature();
 				final PatchingChain<Unit> units = b.getUnits();
 				
-				// If there is filter for the class names and current class is not in the remaining list, skip.
-				if (addedClasses != null && !addedClasses.contains(className)) {
+				if (!androsim.isDirtyMethod(currSig)) {
 					return;
 				}
 
@@ -188,10 +182,8 @@ public class SysCallInstrumentation {
 			apkPath, 
 			"-d",
 			outDir + File.separator + apkName,
-			"-force-android-jar",
-			androidJarDirPath + "/android-22/android.jar"
-		};        
-		
+			"-force-android-jar", forceAndroidJarPath
+		};        		
 		soot.Main.main(sootArgs);
 	}
 

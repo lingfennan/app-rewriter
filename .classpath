@@ -7,5 +7,6 @@
 	<classpathentry combineaccessrules="false" kind="src" path="/LegoAndroid"/>
 	<classpathentry kind="lib" path="/Users/ruian/Desktop/app-signature/third-party/JarLibs/javax.json-1.0.4.jar"/>
 	<classpathentry kind="lib" path="/Users/ruian/Desktop/app-signature/third-party/JarLibs/javax.json-api-1.0.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/SimplePermAnalysis"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
