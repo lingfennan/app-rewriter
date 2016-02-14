@@ -155,7 +155,7 @@ public class SysCallInstrumentation {
 		                
 		                public void caseInvokeStmt(InvokeStmt stmt) {
 	                        InvokeExpr invokeExpr = stmt.getInvokeExpr();
-	                        addLogForSysCall(invokeExpr, null, b, units, u, sbRef, contentStr, currSig, currSubSig);
+	                        addLogForSysCall(invokeExpr, null, b, units, u, sbRef, contentStr, className, currSig, currSubSig);
 		                }
 		                
 		                public void caseAssignStmt(AssignStmt stmt) {
@@ -164,7 +164,7 @@ public class SysCallInstrumentation {
 							InvokeExpr invokeExpr = null;
 							if (rValue instanceof InvokeExpr) {
 								invokeExpr = (InvokeExpr) rValue;
-							    addLogForSysCall(invokeExpr, lValue, b, units, u, sbRef, contentStr, currSig, currSubSig);
+							    addLogForSysCall(invokeExpr, lValue, b, units, u, sbRef, contentStr, className, currSig, currSubSig);
 							}
 		                }
 						
@@ -211,10 +211,16 @@ public class SysCallInstrumentation {
 		stmts.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(logE.makeRef(), StringConstant.v("CallTracer"), contentStr)));
     }
     
-    private static void addValueString(Value arg, List<Unit> stmts, Local sbRef) {
+    private static void addValueString(Value arg, List<Unit> stmts, Local sbRef, boolean firstOne) {
     	// Convert Value to String, and add them to the String Builder
 		String typeStr = arg.getType().toString();
-		SootMethod sbAppend = null;
+		SootMethod strSbAppend = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.StringBuilder append(java.lang.String)");
+		// Log type string.
+		String logTypeStr = "\"" + typeStr + "\": \"";
+		if (!firstOne) logTypeStr = "," + logTypeStr;
+		stmts.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, strSbAppend.makeRef(),
+				StringConstant.v(logTypeStr))));
+		SootMethod sbAppend = null;				
 		boolean logArg = false;
 		String strValue = null;
 		if (typeStr.equals("byte")) {
@@ -260,13 +266,12 @@ public class SysCallInstrumentation {
 			stmts.add(Jimple.v().newAssignStmt(sbRef,
 					Jimple.v().newVirtualInvokeExpr(sbRef, sbAppend.makeRef(), StringConstant.v(strValue))));
 		}
-		sbAppend = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.StringBuilder append(java.lang.String)");
-		stmts.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppend.makeRef(), StringConstant.v(", "))));
+		stmts.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, strSbAppend.makeRef(), StringConstant.v("\""))));
     }
     
     private static void addLogForSysCall(InvokeExpr invokeExpr, Value returnValue, Body body,
     		PatchingChain<Unit> units, Unit currentUnit,
-    		Local sbRef, Local contentStr, String methodSig, String methodSubsig) {
+    		Local sbRef, Local contentStr, String className, String methodSig, String methodSubsig) {
 		/* This function does the following changes to the original function body.
 		 * 1. Print class name, method name, permission
 		 * 2a. If argument is primitive type, log Argument value, else Argument type
@@ -286,6 +291,13 @@ public class SysCallInstrumentation {
 		List<Unit> before = new ArrayList<Unit>();
 		List<Unit> after = new ArrayList<Unit>();
 		
+		// The log format:
+		// CallTracer:{"Permission": "Some",
+		// "Source": {"Class": "ClassName", "Signature": "methodSig", "SubSignature": "subsignature"},
+		// "Target": {"Class": "ClassName", "Signature": "methodSig", "SubSignature": "subsignature",
+		// 		"IsJavaLibrary": true, "IsStatic": true, "InstanceString": "if there is one"},
+		// "Parameters": {"typea": "a", "typeb": "b", "typec": "c"},
+		// "Return": {"returntype": "hello world"} }
 		// ============================= Step 1: print class name, method name, permission =============================
 		// callTracerSB = new java.lang.StringBuilder
 		{
@@ -295,55 +307,68 @@ public class SysCallInstrumentation {
 			
 			//specialinvoke callTracerSB.init<>
 			SootMethod sbConstructor = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("void <init>(java.lang.String)");
+			// CallTracer:{"Permission": "Some"
 			before.add(
 					Jimple.v().newInvokeStmt(
 						Jimple.v().newSpecialInvokeExpr(sbRef, sbConstructor.makeRef(), 
-								StringConstant.v("[Permission]#" + permission + "[Signature]#" + methodSig + "@"
-										+ "[Target]#" + targetMethod.isStatic() + "#" + targetMethod.isJavaLibraryMethod() +
-										"#" + targetMethod.getSignature() + "("))));
+								StringConstant.v("CallTracer:{\"Permission\":\"" + permission + "\", " +
+										"\"Source\": {\"Class\": \"" + className + "\", \"Signature\": \"" + methodSig + "\"," +
+											"\"SubSignature\": \"" + methodSubsig + "\"}," +
+										"\"Target\": {\"Class\": \"" + targetClassName + "\", \"Signature\":\"" + targetMethod.getSignature() + "\"," +
+											"\"SubSignature\": \"" + targetMethod.getSubSignature() + "\"," +
+											"\"IsStatic\": " + targetMethod.isStatic() + "," +
+											"\"IsJavaLibrary\": " + targetMethod.isJavaLibraryMethod() ))));
 		}
 		// ============================= Step 2: print argument values based on their types =============================
 		// callTracerSB = new java.lang.StringBuilder
 		{
 			// this
+			SootMethod sbAppendS = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.StringBuilder append(java.lang.String)");
 			if ((invokeExpr instanceof InstanceInvokeExpr) && !(invokeExpr instanceof SpecialInvokeExpr)) {
+				before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v(", \"InstanceString\": \""))));
 				Value baseValue = ((InstanceInvokeExpr) invokeExpr).getBase();
 				SootMethod sbAppendO = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.StringBuilder append(java.lang.Object)");
 				before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendO.makeRef(), baseValue)));
-				SootMethod sbAppendS = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.StringBuilder append(java.lang.String)");
-				before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v(", "))));
+				before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v("\""))));				
 			}
+			before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v("},"))));
 			
 			// append the parameters
 			List<Value> args = invokeExpr.getArgs();
-			for (Value arg : args) {
-				addValueString(arg, before, sbRef);
+			before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v("\"Parameters\": {"))));			
+			for (int i=0; i < args.size(); i++) {
+				if (i==0) {
+					addValueString(args.get(i), before, sbRef, true);
+				} else {
+					addValueString(args.get(i), before, sbRef, false);
+				}
 			}
-			SootMethod sbAppendS = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.StringBuilder append(java.lang.String)");
-			before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v(")"))));
+			before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v("}"))));
 			
 			// Log.e("CallTracer", callTracerSB.toString())
-			sbToStringAndLog(before, sbRef, contentStr);
+			// sbToStringAndLog(before, sbRef, contentStr);
 		}
 		// ============================= Step 3: print return values based on their types =============================
 		{
+			SootMethod sbAppendS = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.StringBuilder append(java.lang.String)");							
 			if (returnValue != null) {
 				// callTracerSB = new java.lang.StringBuilder
-				NewExpr newSBExpr = Jimple.v().newNewExpr(RefType.v("java.lang.StringBuilder"));
-				after.add(Jimple.v().newAssignStmt(sbRef, newSBExpr));
+				// NewExpr newSBExpr = Jimple.v().newNewExpr(RefType.v("java.lang.StringBuilder"));
+				// after.add(Jimple.v().newAssignStmt(sbRef, newSBExpr));
 				//specialinvoke callTracerSB.init<>
-				SootMethod sbConstructor = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("void <init>(java.lang.String)");
-				after.add(Jimple.v().newInvokeStmt(
-						Jimple.v().newSpecialInvokeExpr(sbRef, sbConstructor.makeRef(), StringConstant.v("[Return]#"))));
+				// SootMethod sbConstructor = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("void <init>(java.lang.String)");
 				
-				// What are the possible left value types?
+				after.add(Jimple.v().newInvokeStmt(
+						Jimple.v().newSpecialInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v(", \"Return\": {"))));
 				
 				// append the return value
-				addValueString(returnValue, after, sbRef);
+				addValueString(returnValue, after, sbRef, true);
 				// Log.e("CallTracer", callTracerSB.toString())
-				sbToStringAndLog(after, sbRef, contentStr);
+				after.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v("}"))));				
 			}
+			after.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v("}"))));					
 		}
+		sbToStringAndLog(after, sbRef, contentStr);		
 		units.insertBefore(before, currentUnit);		
 		units.insertAfter(after, currentUnit);
 		body.validate();
