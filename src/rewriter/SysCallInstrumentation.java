@@ -21,6 +21,7 @@ import soot.Local;
 import soot.PackManager;
 import soot.PatchingChain;
 import soot.RefType;
+import soot.ResolutionFailedException;
 import soot.Scene;
 import soot.SootClass;
 import soot.SootMethod;
@@ -279,7 +280,13 @@ public class SysCallInstrumentation {
 		 * 3. If return value is not void, follow the similar procedure to insert expression after a unit.
 		 */
     	// Insert the required logic before each API call invocation and after each API call invocation.
-		SootMethod targetMethod = invokeExpr.getMethod();
+		SootMethod targetMethod = null;
+		try {
+			targetMethod = invokeExpr.getMethod();
+		} catch (ResolutionFailedException e) {
+			e.printStackTrace();
+			return;
+		}
 		String targetClassName = targetMethod.getDeclaringClass().getName();
 		String targetMethodName = targetClassName + "." + targetMethod.getName();
 		String permission = psCout.getApiPermission(targetMethodName);
