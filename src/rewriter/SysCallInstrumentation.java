@@ -91,7 +91,7 @@ public class SysCallInstrumentation {
 					diffMethodPath = commandLine.getOptionValue("diffMethodPath");					
 				} else if (opt.equals("androidJarDir")) {
 					androidJarDirPath = commandLine.getOptionValue("androidJarDir");
-					forceAndroidJarPath = androidJarDirPath + "/android-22/android.jar";					
+					forceAndroidJarPath = androidJarDirPath + "/android-21/android.jar";					
 				} else if (opt.equals("outDir")) {
 					outDir = commandLine.getOptionValue("outDir");
 				}
@@ -184,7 +184,7 @@ public class SysCallInstrumentation {
 			"-d",
 			outDir + File.separator + apkName,
 			"-force-android-jar", forceAndroidJarPath
-		};        		
+		};   
 		soot.Main.main(sootArgs);
 	}
 
@@ -281,7 +281,7 @@ public class SysCallInstrumentation {
 		 */
     	// Insert the required logic before each API call invocation and after each API call invocation.
 		SootMethod targetMethod = null;
-		try {
+		try{
 			targetMethod = invokeExpr.getMethod();
 		} catch (ResolutionFailedException e) {
 			e.printStackTrace();
