@@ -50,7 +50,8 @@ public class SysCallInstrumentation {
 	private static String diffMethodPath = null;
 	private static String androidJarDirPath = null;
 	private static String forceAndroidJarPath = null;	
-	private static String outDir = null;	
+	private static String outDir = null;
+	private static boolean trackAll = false;
 	
 	// The system call APIs that is interesting to us.
 	private static PSCout psCout;
@@ -64,6 +65,7 @@ public class SysCallInstrumentation {
 		options.addOption("diffMethodPath", true, "Path to the diff method results");		
 		options.addOption("androidJarDir", true, "android jars directory");
 		options.addOption("outDir", true, "out dir");
+		options.addOption("trackAll", false, "Track all methods (after excluding androidsim Results), r.t. permission related only!");
 	}
 	
 	private static void parseOptions(String[] args) {
@@ -94,6 +96,8 @@ public class SysCallInstrumentation {
 					forceAndroidJarPath = androidJarDirPath + "/android-21/android.jar";					
 				} else if (opt.equals("outDir")) {
 					outDir = commandLine.getOptionValue("outDir");
+				} else if (opt.equals("trackAll")) {
+					trackAll = true;
 				}
 			}
 		} catch (ParseException ex) {
@@ -290,7 +294,7 @@ public class SysCallInstrumentation {
 		String targetClassName = targetMethod.getDeclaringClass().getName();
 		String targetMethodName = targetClassName + "." + targetMethod.getName();
 		String permission = psCout.getApiPermission(targetMethodName);
-		if (permission == null) {
+		if (!trackAll && permission == null) {
 			// If current method doesn't require permission, skip it.
 			return;
 		}
