@@ -206,14 +206,14 @@ public class SysCallInstrumentation {
         return tmpString;
     }
     
-    private static void sbToStringAndLog(List<Unit> stmts, Local sbRef, Local contentStr) {
+    private static void sbToStringAndLog(List<Unit> stmts, Local sbRef, Local contentStr, String tag) {
 		// contentStr = sb.toString()
 		SootMethod sbToStr = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.String toString()");
 		stmts.add(Jimple.v().newAssignStmt(contentStr, Jimple.v().newVirtualInvokeExpr(sbRef, sbToStr.makeRef())));
 		
 		// Log.e("CallTracer", contentStr)
 		SootMethod logE = Scene.v().getSootClass("android.util.Log").getMethod("int e(java.lang.String,java.lang.String)");
-		stmts.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(logE.makeRef(), StringConstant.v("CallTracer"), contentStr)));
+		stmts.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(logE.makeRef(), StringConstant.v(tag), contentStr)));
     }
     
     private static void addValueString(Value arg, List<Unit> stmts, Local sbRef, boolean firstOne) {
@@ -295,9 +295,20 @@ public class SysCallInstrumentation {
 		String targetMethodName = targetClassName + "." + targetMethod.getName();
 		String permission = psCout.getApiPermission(targetMethodName);
 		if (!trackAll && permission == null) {
-			// If current method doesn't require permission, skip it.
+			// If current method doesn't require permission, and we are not tracking all method invocations, skip it.
 			return;
 		}
+
+		// Initialize the tag, which can be used to filter results.
+		String tag;
+		if (permission != null) {
+			// Log("CallTracer"), trace permissions
+			tag = "CallTracer";
+		} else {
+			// Log("InfoTracer"), trace call stacks
+			tag = "InfoTracer";
+		}
+		
 		System.out.println("Instrumenting:[method]" + methodSig + ", [permission]" + permission);
 		List<Unit> before = new ArrayList<Unit>();
 		List<Unit> after = new ArrayList<Unit>();
@@ -322,7 +333,7 @@ public class SysCallInstrumentation {
 			before.add(
 					Jimple.v().newInvokeStmt(
 						Jimple.v().newSpecialInvokeExpr(sbRef, sbConstructor.makeRef(), 
-								StringConstant.v("CallTracer:{\"Permission\":\"" + permission + "\", " +
+								StringConstant.v(tag + ":{\"Permission\":\"" + permission + "\", " +
 										"\"Source\": {\"Class\": \"" + className + "\", \"Signature\": \"" + methodSig + "\"," +
 											"\"SubSignature\": \"" + methodSubsig + "\"}," +
 										"\"Target\": {\"Class\": \"" + targetClassName + "\", \"Signature\":\"" + targetMethod.getSignature() + "\"," +
@@ -357,7 +368,7 @@ public class SysCallInstrumentation {
 			before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v("}"))));
 			
 			// Log.e("CallTracer", callTracerSB.toString())
-			// sbToStringAndLog(before, sbRef, contentStr);
+			// sbToStringAndLog(before, sbRef, contentStr, tag);
 		}
 		// ============================= Step 3: print return values based on their types =============================
 		{
@@ -379,7 +390,8 @@ public class SysCallInstrumentation {
 			}
 			after.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v("}"))));					
 		}
-		sbToStringAndLog(after, sbRef, contentStr);		
+		// Log.e($tag, callTracerSB.toString())
+		sbToStringAndLog(after, sbRef, contentStr, tag);		
 		units.insertBefore(before, currentUnit);		
 		units.insertAfter(after, currentUnit);
 		body.validate();
