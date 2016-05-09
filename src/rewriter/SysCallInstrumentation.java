@@ -32,6 +32,7 @@ import soot.Value;
 import soot.jimple.AbstractStmtSwitch;
 import soot.jimple.AssignStmt;
 import soot.jimple.InstanceInvokeExpr;
+import soot.jimple.IntConstant;
 import soot.jimple.InvokeExpr;
 import soot.jimple.InvokeStmt;
 import soot.jimple.Jimple;
@@ -228,6 +229,7 @@ public class SysCallInstrumentation {
 				StringConstant.v(logTypeStr))));
 		SootMethod sbAppend = null;				
 		boolean logArg = false;
+		boolean addNullCheck = false;
 		String strValue = null;
 		if (typeStr.equals("byte")) {
 			sbAppend = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.StringBuilder append(int)");
@@ -256,23 +258,42 @@ public class SysCallInstrumentation {
 		} else if (typeStr.equals("java.lang.String")) {
 			sbAppend = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.StringBuilder append(java.lang.String)");
 			logArg = true;
+			addNullCheck = true;
 		} else if (typeStr.equals("null_type")){
 			sbAppend = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.StringBuilder append(java.lang.String)");		
 			strValue = "null";
 		} else {
 			sbAppend = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.StringBuilder append(java.lang.Object)");
-			logArg = true;			
+			logArg = true;
+			addNullCheck = true;
 		}
 		
 		// Update the statements.
-		if (logArg) {
-			stmts.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppend.makeRef(), arg)));
+		if (addNullCheck) {
+			/**
+			 * add null check
+			 * if p != null; Log.e(arg); else Log.e(null);
+			 */
+			Value pNull = Jimple.v().newEqExpr(arg, IntConstant.v(0));			
+			Unit appendArg = Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppend.makeRef(), arg));
+			Unit appendNull = Jimple.v().newAssignStmt(sbRef,
+					Jimple.v().newVirtualInvokeExpr(sbRef, sbAppend.makeRef(), StringConstant.v("null")));
+			Unit appendEnd = Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, strSbAppend.makeRef(), StringConstant.v("\"")));
+			stmts.add(Jimple.v().newIfStmt(pNull, appendNull));
+			stmts.add(appendArg);
+			stmts.add(Jimple.v().newGotoStmt(appendEnd));
+			stmts.add(appendNull);
+			stmts.add(appendEnd);
+		} else {
+			if (logArg) {
+				stmts.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppend.makeRef(), arg)));
+			}
+			if (strValue != null) {
+				stmts.add(Jimple.v().newAssignStmt(sbRef,
+						Jimple.v().newVirtualInvokeExpr(sbRef, sbAppend.makeRef(), StringConstant.v(strValue))));
+			}
+			stmts.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, strSbAppend.makeRef(), StringConstant.v("\""))));
 		}
-		if (strValue != null) {
-			stmts.add(Jimple.v().newAssignStmt(sbRef,
-					Jimple.v().newVirtualInvokeExpr(sbRef, sbAppend.makeRef(), StringConstant.v(strValue))));
-		}
-		stmts.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, strSbAppend.makeRef(), StringConstant.v("\""))));
     }
     
     private static void addLogForSysCall(InvokeExpr invokeExpr, Value returnValue, Body body,
@@ -355,13 +376,22 @@ public class SysCallInstrumentation {
 		{
 			// this
 			SootMethod sbAppendS = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.StringBuilder append(java.lang.String)");
+			/*
+			 * The identity statement seems not interesting, and it some times causes crashes, therefore, I disabled this logging.
+			 * vaultyfree.apk -> hashCode() on null object
+			 *  
+			 * TODO (ruian): come up with a solution, instead of this temporary hack.
+			 * 
 			if ((invokeExpr instanceof InstanceInvokeExpr) && !(invokeExpr instanceof SpecialInvokeExpr)) {
 				before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v(", \"InstanceString\": \""))));
 				Value baseValue = ((InstanceInvokeExpr) invokeExpr).getBase();
-				SootMethod sbAppendO = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.StringBuilder append(java.lang.Object)");
-				before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendO.makeRef(), baseValue)));
-				before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v("\""))));				
+				addValueString(baseValue, before, sbRef, true);
+				
+				// SootMethod sbAppendO = Scene.v().getSootClass("java.lang.StringBuilder").getMethod("java.lang.StringBuilder append(java.lang.Object)");
+				// before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendO.makeRef(), baseValue)));
+				// before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v("\""))));
 			}
+			*/
 			before.add(Jimple.v().newAssignStmt(sbRef, Jimple.v().newVirtualInvokeExpr(sbRef, sbAppendS.makeRef(), StringConstant.v("},"))));
 			
 			// append the parameters

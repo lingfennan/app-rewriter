@@ -6,6 +6,7 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -21,7 +22,7 @@ public class Androsim {
 	 * In androsim.py, we specified a parameter to threshold the similarity of similar methods. We are currently using 0.6.
 	 */
 	public double simThreshold = 0.6;
-	private double simScore = -1;
+	private double simScore = -1;	
 	private String summary = null;
 	private Set<String> newMethods = null;
 	private Set<String> newSmaliMethods = null;
@@ -32,7 +33,7 @@ public class Androsim {
 		newSmaliMethods = new HashSet<String>();
 		similarMethods = new HashSet<String>();
 		similarSmaliMethods = new HashSet<String>();		
-		if (androsimPath == null || diffMethodPath == null) {
+		if (androsimPath == null || diffMethodPath == null || androsimPath == "" || diffMethodPath == "") {
 			System.out.println("No androsimPath or diffMethodPath found!");
 			return;
 		}
@@ -178,8 +179,8 @@ public class Androsim {
 		}
 	}
 	
-	public HashMap<String, Set<String>> getDirtyEntryPoints(HashMap<String, Set<String>> entryWithCallbacks) {
-		HashMap<String, Set<String>> dirtyEntries = new HashMap<String, Set<String>>();
+	public Map<String, Set<String>> getDirtyEntryPoints(Map<String, Set<String>> entryWithCallbacks) {
+		Map<String, Set<String>> dirtyEntries = new HashMap<String, Set<String>>();
 		for (String className: entryWithCallbacks.keySet()) {
 			Set<String> dirtyMethods = new HashSet<String>();
 			for (String methodName: entryWithCallbacks.get(className)) {

@@ -23,7 +23,7 @@ public class InterestingMethods {
 		classNames = new HashSet<String>();
 		methodNames = new HashSet<String>();
 		
-		if (configPath == null) {
+		if (configPath == null || configPath == "") {
 			System.out.println("No config path found!");
 			return;
 		}
