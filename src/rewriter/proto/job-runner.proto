@@ -1,0 +1,26 @@
+syntax = "proto2";
+
+package gtisc.proto.rewriter;
+
+message AppAnalysisConfig {
+	optional string job_name = 1;
+	optional string apk_path = 2;
+	optional string apk_dir = 3;
+	optional string android_jar_dir_path = 4;
+	optional string force_android_jar_path = 5;
+	optional string config_path = 6;
+	optional string result_dir = 7;
+
+	// useless and debug
+	optional string soot_out_dir = 8;
+	optional bool console_print = 9;
+	optional bool binary_config = 10;
+	optional bool binary_output = 11;
+	optional bool keep_soot_output = 12;
+
+	// more input options
+	optional string androsim_path = 13;
+	optional string diff_method_path = 14;
+	// rewrite the apk to track all the method invocations
+	optional bool track_all = 15;
+}

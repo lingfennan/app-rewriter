@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 // import org.apache.commons.cli.Option;
@@ -13,8 +14,8 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 
-import edu.gatech.gtisc.legoandroid.permission.PSCout;
-import edu.gatech.gtisc.simplepermanalysis.Androsim;
+import gtisc.app.permission.PSCout;
+import gtisc.proto.rewriter.JobRunner.AppAnalysisConfig;
 import soot.Body;
 import soot.BodyTransformer;
 import soot.Local;
@@ -30,7 +31,6 @@ import soot.Unit;
 import soot.Value;
 import soot.jimple.AbstractStmtSwitch;
 import soot.jimple.AssignStmt;
-import soot.jimple.IdentityStmt;
 import soot.jimple.InstanceInvokeExpr;
 import soot.jimple.InvokeExpr;
 import soot.jimple.InvokeStmt;
@@ -43,19 +43,12 @@ import soot.options.Options;
 
 public class SysCallInstrumentation {
 	public static org.apache.commons.cli.Options options = null;
-	
-	private static String apkPath = null;
-	// The methods that we want to instrument.	
-	private static String androSimPath = null;
-	private static String diffMethodPath = null;
-	private static String androidJarDirPath = null;
-	private static String forceAndroidJarPath = null;	
-	private static String outDir = null;
-	private static boolean trackAll = false;
+	private static AppAnalysisConfig config = null;
 	
 	// The system call APIs that is interesting to us.
 	private static PSCout psCout;
-	private static Androsim androsim;	
+	private static Androsim androsim;
+	private static InterestingMethods interests;
 
 	private static void buildOptions() {
 		options = new org.apache.commons.cli.Options();
@@ -64,7 +57,8 @@ public class SysCallInstrumentation {
 		options.addOption("androSimPath", true, "path to the androsim results");
 		options.addOption("diffMethodPath", true, "Path to the diff method results");		
 		options.addOption("androidJarDir", true, "android jars directory");
-		options.addOption("outDir", true, "out dir");
+		options.addOption("configPath", true, "The path to the configuration file");
+		options.addOption("resultDir", true, "The directory to store the results");		
 		options.addOption("trackAll", false, "Track all methods (after excluding androidsim Results), r.t. permission related only!");
 	}
 	
@@ -74,6 +68,7 @@ public class SysCallInstrumentation {
 		
 		CommandLineParser parser = new PosixParser();
 		CommandLine commandLine;
+		AppAnalysisConfig.Builder configBuilder = AppAnalysisConfig.newBuilder();
 		
 		try {
 			commandLine = parser.parse(options, args);
@@ -86,19 +81,22 @@ public class SysCallInstrumentation {
 				String opt = option.getOpt();
 				
 				if (opt.equals("apk")){
-					apkPath = commandLine.getOptionValue("apk");
+					configBuilder.setApkPath(commandLine.getOptionValue("apk"));
 				} else if (opt.equals("androSimPath")) {
-					androSimPath = commandLine.getOptionValue("androSimPath");
+					configBuilder.setAndrosimPath(commandLine.getOptionValue("androSimPath"));
 				} else if (opt.equals("diffMethodPath")) {
-					diffMethodPath = commandLine.getOptionValue("diffMethodPath");					
+					configBuilder.setDiffMethodPath(commandLine.getOptionValue("diffMethodPath"));
 				} else if (opt.equals("androidJarDir")) {
-					androidJarDirPath = commandLine.getOptionValue("androidJarDir");
-					forceAndroidJarPath = androidJarDirPath + "/android-21/android.jar";					
-				} else if (opt.equals("outDir")) {
-					outDir = commandLine.getOptionValue("outDir");
+					configBuilder.setAndroidJarDirPath(commandLine.getOptionValue("androidJarDir"));
+					configBuilder.setForceAndroidJarPath(configBuilder.getAndroidJarDirPath() + "/android-21/android.jar");
+				} else if (opt.equals("configPath")) {
+					configBuilder.setConfigPath(commandLine.getOptionValue("configPath"));
+				} else if (opt.equals("resultDir")) {
+					configBuilder.setResultDir(commandLine.getOptionValue("resultDir"));					
 				} else if (opt.equals("trackAll")) {
-					trackAll = true;
+					configBuilder.setTrackAll(true);
 				}
+				config = configBuilder.build();
 			}
 		} catch (ParseException ex) {
 			ex.printStackTrace();
@@ -114,7 +112,10 @@ public class SysCallInstrumentation {
 		parseOptions(args);
 		
 		// initialize androsim
-		androsim = new Androsim(androSimPath, diffMethodPath);
+		androsim = new Androsim(config.getAndrosimPath(), config.getDiffMethodPath());
+		
+		// initialize interesting methods
+		interests = new InterestingMethods(config.getConfigPath());
 
 		// initialize PSCout
 		String dataDir = System.getProperty("user.dir") + File.separator + "data";
@@ -178,17 +179,17 @@ public class SysCallInstrumentation {
 			}
 		}));
         
-		String[] tokens = apkPath.split("/");
-		String apkName = tokens[tokens.length - 1];
+		File apkFile = new File(config.getApkPath());		
 		String[] sootArgs = new String[]{
 			"-android-jars",
-			androidJarDirPath,
+			config.getAndroidJarDirPath(),
 			"-process-dir",
-			apkPath, 
+			apkFile.getAbsolutePath(),
 			"-d",
-			outDir + File.separator + apkName,
-			"-force-android-jar", forceAndroidJarPath
-		};   
+			config.getResultDir() + File.separator + apkFile.getName(),
+			"-force-android-jar",
+			config.getForceAndroidJarPath()
+		};
 		soot.Main.main(sootArgs);
 	}
 
@@ -294,8 +295,10 @@ public class SysCallInstrumentation {
 		String targetClassName = targetMethod.getDeclaringClass().getName();
 		String targetMethodName = targetClassName + "." + targetMethod.getName();
 		String permission = psCout.getApiPermission(targetMethodName);
-		if (!trackAll && permission == null) {
-			// If current method doesn't require permission, and we are not tracking all method invocations, skip it.
+		boolean interesting = interests.isDirty(targetMethod);
+		
+		// Continue transform only in three cases: permission related, interests, or trackAll
+		if (!config.getTrackAll() && permission == null && !interesting) {
 			return;
 		}
 
@@ -304,9 +307,15 @@ public class SysCallInstrumentation {
 		if (permission != null) {
 			// Log("CallTracer"), trace permissions
 			tag = "CallTracer";
-		} else {
+		} else if (interesting) {
+			// Log("InterestTracer"), trace interests
+			tag = "InterestTracer";
+		} else if (config.getTrackAll()) {
 			// Log("InfoTracer"), trace call stacks
 			tag = "InfoTracer";
+		} else {
+			System.out.println("This shouldn't happen, in tag settings.");
+			return;
 		}
 		
 		System.out.println("Instrumenting:[method]" + methodSig + ", [permission]" + permission);

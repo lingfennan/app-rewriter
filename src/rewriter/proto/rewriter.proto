@@ -1,0 +1,17 @@
+syntax = "proto2";
+
+package gtisc.proto.rewriter;
+
+message PointOfInterest {
+	enum POINT_TYPE {
+		METHOD_SIGNATURE = 0;
+		CLASS_NAME = 1;
+		CLASS_METHOD_NAME = 2;
+	}
+	required POINT_TYPE point_type = 1;
+	required string content = 2;
+}
+
+message RewriterConfig {
+	repeated PointOfInterest interests = 1;
+}
