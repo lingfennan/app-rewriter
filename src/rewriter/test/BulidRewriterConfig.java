@@ -8,6 +8,7 @@ import java.io.IOException;
 import org.junit.Test;
 
 import gtisc.app.search.AppSearchUtil;
+import gtisc.app.search.ProtoBufferUtil;
 import gtisc.proto.rewriter.Rewriter.PointOfInterest;
 import gtisc.proto.rewriter.Rewriter.RewriterConfig;
 
@@ -26,7 +27,7 @@ public class BulidRewriterConfig {
 		config.addInterests(buildInterest("android.webkit.WebView.loadData", PointOfInterest.POINT_TYPE.CLASS_METHOD_NAME));
 		config.addInterests(buildInterest("android.webkit.WebView.loadDataWithBaseURL", PointOfInterest.POINT_TYPE.CLASS_METHOD_NAME));
 		File testConfig = new File("data" + File.separator + "webview.config");
-		AppSearchUtil.saveMessage(config.build(), testConfig, false);
+		ProtoBufferUtil.saveMessage(config.build(), testConfig, false);
 		assertEquals(true, testConfig.exists());
 	}
 }
