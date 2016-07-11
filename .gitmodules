@@ -1,0 +1,3 @@
+[submodule "third-party/app-search"]
+	path = third-party/app-search
+	url = https://github.com/lingfennan/app-search.git
