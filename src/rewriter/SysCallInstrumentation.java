@@ -14,7 +14,6 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 
-import gtisc.app.permission.PSCout;
 import gtisc.proto.rewriter.JobRunner.AppAnalysisConfig;
 import soot.Body;
 import soot.BodyTransformer;

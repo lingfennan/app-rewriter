@@ -9,7 +9,6 @@
 	<classpathentry kind="lib" path="libs/soot-trunk.jar"/>
 	<classpathentry kind="lib" path="libs/protobuf-java-2.6.1.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/app-search"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/reachability-and-perm-analysis"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/4"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
