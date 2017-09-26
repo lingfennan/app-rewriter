@@ -1,3 +1,6 @@
+# Introduction #
+This project rewrites an Android app by adding logging instructions for Android framework API calls. This can be useful for checking/analyzing app behavior etc.
+
 # To run the jar file #
 Step 1: Rewrite an app, apk, androidJarDir and resultDir are necessary parameters, by default, it instruments all the API calls specified by PScout.
 ```
