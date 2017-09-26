@@ -22,7 +22,5 @@ cp $MODIFIED_APK $APK.offender.rewrite.apk
 ```
 
 # Dependencies #
-This repo depends on app-search and reachability-and-perm-analysis. 
+This repo depends on app-search. 
 - app-search is included as a submodule in third-party, because it is hosted on GitHub.
-- reachability-and-perm-analysis is placed in the same project([link](https://bitbucket.org/gplviolation/reachability-and-perm-analysis)), 
-because it is hosted on BitBucket.
